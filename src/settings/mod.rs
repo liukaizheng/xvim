@@ -1,12 +1,12 @@
+mod from_value;
+
+pub use from_value::FromValue;
 use parking_lot::RwLock;
 pub use rmpv::Value;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
 };
-pub use from_value::FromValue;
-
-mod from_value;
 
 lazy_static! {
     pub static ref SETTINGS: Settings = Settings::new();

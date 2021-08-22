@@ -10,6 +10,7 @@ resolver = "2"
 members = ["xvim-derive"]
 
 [dependencies]
+tokio = { version = "1", features = ["full"]}
 clap = "2"
 log = "0"
 rmpv = "1"
