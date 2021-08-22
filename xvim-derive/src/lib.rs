@@ -2,17 +2,17 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Attribute, Data, DataStruct, DeriveInput, Error, Ident, Lit, Meta};
 
-#[proc_macro_derive(SettingGroup, attributes(setting_prefx))]
+#[proc_macro_derive(SettingGroup, attributes(setting_prefix))]
 pub fn setting_group(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
-    let prefix = setting_prefx(input.attrs.as_ref())
+    let prefix = setting_prefix(input.attrs.as_ref())
         .map(|p| format!("{}_", p))
         .unwrap_or_else(|| "".to_string());
     stream(input, prefix)
 }
 
 fn stream(input: DeriveInput, prefix: String) -> TokenStream {
-    const ERR_MSG: &str = "Xvim Macro expects a struct";
+    const ERR_MSG: &str = "Derive macro expects a struct";
     match input.data {
         Data::Struct(ref data) => struct_stream(input.ident, prefix, data),
         Data::Enum(data) => Error::new_spanned(data.enum_token, ERR_MSG)
@@ -29,18 +29,18 @@ fn struct_stream(name: Ident, prefix: String, data: &DataStruct) -> TokenStream 
         Some(ref ident) => {
             let vim_setting_name = format!("{}{}", prefix, ident);
             quote! {{
-                fn update_func(value, rmpv::Value) {
-                    let mut s = create::settings::SETTINGS.get::<#name>();
+                fn update_func(value: rmpv::Value) {
+                    let mut s = crate::settings::SETTINGS.get::<#name>();
                     s.#ident.from_value(value);
-                    crate::settings::SETTINGS.set(&sJ);
+                    crate::settings::SETTINGS.set(&s);
                 }
 
                 fn reader_func() -> rmpv::Value {
                     let s = crate::settings::SETTINGS.get::<#name>();
-                    s.#ident.into();
+                    s.#ident.into()
                 }
 
-                create::settings::SETTINGS.set_setting_handlers(
+                crate::settings::SETTINGS.set_setting_handlers(
                     #vim_setting_name,
                     update_func,
                     reader_func
@@ -48,10 +48,9 @@ fn struct_stream(name: Ident, prefix: String, data: &DataStruct) -> TokenStream 
             }}
         }
         None => {
-            Error::new_spanned(field.colon_token, "Expected named struct field").to_compile_error()
+            Error::new_spanned(field.colon_token, "Expected named struct fields").to_compile_error()
         }
     });
-
     let expanded = quote! {
         impl #name {
             pub fn register() {
@@ -64,10 +63,10 @@ fn struct_stream(name: Ident, prefix: String, data: &DataStruct) -> TokenStream 
     TokenStream::from(expanded)
 }
 
-fn setting_prefx(attrs: &[Attribute]) -> Option<String> {
+fn setting_prefix(attrs: &[Attribute]) -> Option<String> {
     for attr in attrs.iter() {
         if let Ok(Meta::NameValue(name_value)) = attr.parse_meta() {
-            if name_value.path.is_ident("setting_prefx") {
+            if name_value.path.is_ident("setting_prefix") {
                 if let Lit::Str(literal) = name_value.lit {
                     return Some(literal.value());
                 }

@@ -1,15 +1,23 @@
 [package]
 name = "xvim"
 version = "0.0.1"
+authors = ["Cazean <lkzheg@gmail.com>"]
 edition = "2018"
+description = "Powerful editor"
 resolver = "2"
 
 [workspace]
-merbers = ["xvim-macro"]
+members = ["xvim-derive"]
 
 [dependencies]
+clap = "2"
+log = "0"
+rmpv = "1"
+parking_lot = "0"
+lazy_static = "1"
 glutin = "0"
 gl = "0"
+xvim-derive = { path = "xvim-derive" }
 xi-core-lib = { git = "https://github.com/xi-editor/xi-editor" }
 xi-rpc = { git = "https://github.com/xi-editor/xi-editor" }
 

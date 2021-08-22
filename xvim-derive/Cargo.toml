@@ -1,6 +1,6 @@
 [package]
-name = "xvim-macro"
-version = "0.0.0"
+name = "xvim-derive"
+version = "0.0.1"
 edition = "2018"
 
 [lib]

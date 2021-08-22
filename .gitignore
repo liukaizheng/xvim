@@ -1,4 +1,4 @@
 /target
 Cargo.lock
 /.vscode
-/xvim-macro/target
+/xvim-derive/target
