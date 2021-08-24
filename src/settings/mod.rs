@@ -1,8 +1,8 @@
 mod from_value;
 
 pub use from_value::FromValue;
-use parking_lot::RwLock;
 pub use nvim_rs::Value;
+use parking_lot::RwLock;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,

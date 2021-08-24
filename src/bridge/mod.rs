@@ -11,9 +11,10 @@ use tokio::{runtime::Runtime, sync::mpsc::UnboundedReceiver};
 pub use ui_commands::*;
 
 use handler::NeovimHandler;
-use log::error;
+use log::{error, info};
 
 use self::create::create_nvim_commad;
+use nvim_rs::Value;
 
 pub struct Bridge {
     _runtime: Runtime,
@@ -45,8 +46,71 @@ async fn start_neovim_runtime(
     let (mut nvim, io_handler) = create::new_child_cmd(&mut create_nvim_commad(), handler)
         .await
         .expect("Could not locate or start neovim process");
-	if nvim.get_api_info().await.is_err() {
+    if nvim.get_api_info().await.is_err() {
         error!("Cannot get neovim api info, either neovide is launched with an unknown command line option or neovim version not supported!");
-
     }
+    tokio::spawn(async move {
+        info!("Close watcher started");
+        match io_handler.await {
+            Err(join_error) => error!("Error join IO Loop: '{}'", join_error),
+            Ok(Err(error)) => {
+                if !error.is_channel_closed() {
+                    error!("Error: {}", error);
+                }
+            }
+            Ok(Ok(())) => {}
+        }
+    });
+
+    match nvim.command_output("echo has('nvim-0.4')").await.as_deref() {
+        Ok("1") => {}
+        _ => {
+            error!("Neovide requires nvim version 0.4 or higher. Download the latest version here https://github.com/neovim/neovim/wiki/Installing-Neovim");
+            std::process::exit(0);
+        }
+    }
+
+    nvim.set_var("xvim", Value::Boolean(true))
+        .await
+        .expect("Cound not communicate with neovim process");
+
+    if let Err(command_error) = nvim.command("runtime! ginit.vim").await {
+        nvim.command(&format!(
+            "echomsg \"error encountered in ginit.vim {:?}\"",
+            command_error
+        ))
+        .await
+        .ok();
+    }
+
+    nvim.set_client_info(
+        "xvim",
+        vec![
+            (Value::from("major"), Value::from(0u64)),
+            (Value::from("minor"), Value::from(0u64)),
+        ],
+        "ui",
+        vec![],
+        vec![],
+    )
+    .await
+    .ok();
+    let _xvim_channel = nvim
+        .list_chans()
+        .await
+        .ok()
+        .and_then(|channel_values| parse_channel_list(channel_values).ok())
+        .and_then(|channel_list| {
+            channel_list.iter().find_map(|channel| match channel {
+                ChannelInfo {
+                    id,
+                    client: Some(ClientInfo {name, ..}),
+                    ..
+                } if name == "xvim" => Some(*id),
+                _ => None,
+            })
+        })
+    .unwrap_or(0);
+
 }
+

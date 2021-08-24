@@ -3,10 +3,10 @@ use std::{
     process::Stdio,
 };
 
+use log::{error, info, warn};
 use nvim_rs::{error::LoopError, Handler, Neovim};
 use tokio::{process::Command, task::JoinHandle};
 use tokio_util::compat::TokioAsyncReadCompatExt;
-use log::{warn, error, info};
 
 use super::tx_wrapper::{TxWrapper, WrapTx};
 
@@ -40,7 +40,7 @@ pub fn create_nvim_commad() -> Command {
     cmd.arg("--embed")
         .args(&SETTINGS.get::<CmdLineSettings>().neovim_args)
         .args(&SETTINGS.get::<CmdLineSettings>().files_to_open);
-	info!("Starting neovim with: {:?}", cmd);
+    info!("Starting neovim with: {:?}", cmd);
 
     #[cfg(not(debug_assertions))]
     cmd.stderr(Stdio::piped());
