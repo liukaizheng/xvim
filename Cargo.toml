@@ -10,15 +10,20 @@ resolver = "2"
 members = ["xvim-derive"]
 
 [dependencies]
+which = "4"
+async-trait = "0"
+futures = "0"
+pin-project = "1"
 tokio = { version = "1", features = ["full"]}
+tokio-util = "0"
 clap = "2"
 log = "0"
-rmpv = "1"
 parking_lot = "0"
 lazy_static = "1"
 glutin = "0"
 gl = "0"
 xvim-derive = { path = "xvim-derive" }
+nvim-rs = { git = "https://github.com/KillTheMule/nvim-rs", branch = "master", features = ["use_tokio"] }
 xi-core-lib = { git = "https://github.com/xi-editor/xi-editor" }
 xi-rpc = { git = "https://github.com/xi-editor/xi-editor" }
 

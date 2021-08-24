@@ -29,13 +29,13 @@ fn struct_stream(name: Ident, prefix: String, data: &DataStruct) -> TokenStream 
         Some(ref ident) => {
             let vim_setting_name = format!("{}{}", prefix, ident);
             quote! {{
-                fn update_func(value: rmpv::Value) {
+                fn update_func(value: nvim_rs::Value) {
                     let mut s = crate::settings::SETTINGS.get::<#name>();
                     s.#ident.from_value(value);
                     crate::settings::SETTINGS.set(&s);
                 }
 
-                fn reader_func() -> rmpv::Value {
+                fn reader_func() -> nvim_rs::Value {
                     let s = crate::settings::SETTINGS.get::<#name>();
                     s.#ident.into()
                 }

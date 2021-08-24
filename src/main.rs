@@ -51,7 +51,9 @@ fn main() {
         logging_redraw_event_sender,
         running,
     );
-
+    loop {
+        println!("hello world!");
+    }
 }
 
 #[cfg(target_os = "windows")]

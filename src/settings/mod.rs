@@ -2,7 +2,7 @@ mod from_value;
 
 pub use from_value::FromValue;
 use parking_lot::RwLock;
-pub use rmpv::Value;
+pub use nvim_rs::Value;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
