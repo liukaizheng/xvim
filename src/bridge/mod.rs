@@ -4,7 +4,8 @@ mod handler;
 mod tx_wrapper;
 mod ui_commands;
 
-use crate::logging_sender::LoggingUnboundedSender;
+use crate::settings::SETTINGS;
+use crate::{cmd_line::CmdLineSettings, logging_sender::LoggingUnboundedSender};
 pub use events::*;
 use std::sync::{atomic::AtomicBool, Arc};
 use tokio::{runtime::Runtime, sync::mpsc::UnboundedReceiver};
@@ -14,7 +15,7 @@ use handler::NeovimHandler;
 use log::{error, info};
 
 use self::create::create_nvim_commad;
-use nvim_rs::Value;
+use nvim_rs::{UiAttachOptions, Value};
 
 pub struct Bridge {
     _runtime: Runtime,
@@ -43,7 +44,7 @@ async fn start_neovim_runtime(
     running: Arc<AtomicBool>,
 ) {
     let handler = NeovimHandler::new(ui_command_sender.clone(), redraw_event_sender.clone());
-    let (mut nvim, io_handler) = create::new_child_cmd(&mut create_nvim_commad(), handler)
+    let (nvim, io_handler) = create::new_child_cmd(&mut create_nvim_commad(), handler)
         .await
         .expect("Could not locate or start neovim process");
     if nvim.get_api_info().await.is_err() {
@@ -95,7 +96,7 @@ async fn start_neovim_runtime(
     )
     .await
     .ok();
-    let _xvim_channel = nvim
+    let xvim_channel = nvim
         .list_chans()
         .await
         .ok()
@@ -104,13 +105,30 @@ async fn start_neovim_runtime(
             channel_list.iter().find_map(|channel| match channel {
                 ChannelInfo {
                     id,
-                    client: Some(ClientInfo {name, ..}),
+                    client: Some(ClientInfo { name, .. }),
                     ..
                 } if name == "xvim" => Some(*id),
                 _ => None,
             })
         })
-    .unwrap_or(0);
+        .unwrap_or(0);
 
+    info!("Xvim registered to nvim with channel id {}", xvim_channel);
+
+    nvim.set_option("lazydraw", Value::Boolean(false))
+        .await
+        .ok();
+    nvim.set_option("termguicolors", Value::Boolean(true))
+        .await
+        .ok();
+
+    let setting = SETTINGS.get::<CmdLineSettings>();
+    let geometry = setting.geometry;
+    let mut options = UiAttachOptions::new();
+    options.set_linegrid_external(true);
+    options.set_multigrid_external(setting.multi_grid);
+    nvim.ui_attach(geometry.width as i64, geometry.height as i64, &options)
+        .await
+        .expect("Could not attach ui to neovim process");
+    info!("Neovim process attached");
 }
-

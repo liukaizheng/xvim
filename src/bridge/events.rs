@@ -1,4 +1,4 @@
-use log::{trace, debug};
+use log::{debug, trace};
 use nvim_rs::Value;
 use std::convert::TryInto;
 use std::fmt;
@@ -96,7 +96,6 @@ pub struct ClientInfo {
     pub client_type: ClientType,
 }
 
-
 #[derive(Debug, Default)]
 pub struct ChannelInfo {
     pub id: u64,
@@ -134,7 +133,8 @@ pub fn parse_redraw_event(event_value: Value) -> Result<Vec<RedrawEvent>> {
 
 #[inline]
 pub fn parse_channel_list(infos: Vec<Value>) -> Result<Vec<ChannelInfo>> {
-    infos.into_iter()
+    infos
+        .into_iter()
         .map(parse_channel_info)
         .collect::<Result<Vec<_>>>()
 }
@@ -150,16 +150,20 @@ pub fn parse_channel_info(value: Value) -> Result<ChannelInfo> {
                 ("mode", mode) => channel_info.mode = parse_channel_mode(mode)?,
                 ("pty", pty) => channel_info.pty = Some(parse_string(pty)?),
                 ("buffer", buffer) => channel_info.buffer = Some(parse_string(buffer)?),
-                ("client", client_info) => channel_info.client = Some(parse_client_info(client_info)?),
+                ("client", client_info) => {
+                    channel_info.client = Some(parse_client_info(client_info)?)
+                }
                 _ => debug!("Ignored channel info property: {}", name),
             }
         } else {
-            debug!("Invalid channel info format: ({}, {})", property.0, property.1);
+            debug!(
+                "Invalid channel info format: ({}, {})",
+                property.0, property.1
+            );
         }
     }
     Ok(channel_info)
 }
-
 
 #[inline]
 fn parse_channel_stream_type(val: Value) -> Result<ChannelStreamType> {
@@ -168,7 +172,7 @@ fn parse_channel_stream_type(val: Value) -> Result<ChannelStreamType> {
         "stderr" => Ok(ChannelStreamType::Stderr),
         "socket" => Ok(ChannelStreamType::Socket),
         "job" => Ok(ChannelStreamType::Job),
-        stream_type => Err(ParseError::Format(format!("{:?}", stream_type)))
+        stream_type => Err(ParseError::Format(format!("{:?}", stream_type))),
     }
 }
 
@@ -194,7 +198,10 @@ fn parse_client_info(client_info_value: Value) -> Result<ClientInfo> {
                 _ => debug!("Ignored client type property: {}", name),
             }
         } else {
-            debug!("Invalid client info format: ({}, {})", property.0, property.1);
+            debug!(
+                "Invalid client info format: ({}, {})",
+                property.0, property.1
+            );
         }
     }
     Ok(client_info)
@@ -214,7 +221,10 @@ fn parse_client_version(version_value: Value) -> Result<ClientVersion> {
                 _ => debug!("Ignored client version property: {}", name),
             }
         } else {
-            debug!("Invalid client version format: ({}, {})", property.0, property.1);
+            debug!(
+                "Invalid client version format: ({}, {})",
+                property.0, property.1
+            );
         }
     }
     Ok(version)

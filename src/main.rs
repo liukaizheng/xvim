@@ -16,13 +16,21 @@ use log::trace;
 use std::sync::{atomic::AtomicBool, mpsc::channel, Arc};
 use tokio::sync::mpsc::unbounded_channel;
 
+use crate::cmd_line::*;
+use crate::settings::*;
 use crate::{bridge::start_bridge, logging_sender::LoggingUnboundedSender};
+
+#[cfg(not(test))]
+use flexi_logger::{Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming};
 
 fn main() {
     if let Err(err) = cmd_line::handle_command_line_arguments() {
         eprintln!("{}", err);
         return;
     }
+
+    #[cfg(not(test))]
+    init_logger();
 
     trace!("Xvim version: {}", crate_version!());
 
@@ -51,9 +59,32 @@ fn main() {
         logging_redraw_event_sender,
         running,
     );
-    loop {
-        println!("hello world!");
-    }
+    loop {}
+}
+
+#[cfg(not(test))]
+pub fn init_logger() {
+    let settings = SETTINGS.get::<CmdLineSettings>();
+
+    let verbosity = match settings.verbosity {
+        0 => "warn",
+        1 => "info",
+        2 => "debug",
+        _ => "trace",
+    };
+    let logger = match settings.log_to_file {
+        true => Logger::try_with_env_or_str("xvim")
+            .unwrap()
+            .duplicate_to_stderr(Duplicate::Error)
+            .log_to_file(FileSpec::default())
+            .rotate(
+                Criterion::Size(10_000_000),
+                Naming::Timestamps,
+                Cleanup::KeepLogFiles(1),
+            ),
+        false => Logger::try_with_env_or_str(format!("neovide = {}", verbosity)).unwrap(),
+    };
+    logger.start().expect("Could not start logger");
 }
 
 #[cfg(target_os = "windows")]

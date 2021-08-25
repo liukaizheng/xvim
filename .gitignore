@@ -2,3 +2,4 @@
 Cargo.lock
 /.vscode
 /xvim-derive/target
+*.log
