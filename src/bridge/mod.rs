@@ -4,18 +4,18 @@ mod handler;
 mod tx_wrapper;
 mod ui_commands;
 
-use crate::settings::SETTINGS;
-use crate::{cmd_line::CmdLineSettings, logging_sender::LoggingUnboundedSender};
 pub use events::*;
-use std::sync::{atomic::AtomicBool, Arc};
-use tokio::{runtime::Runtime, sync::mpsc::UnboundedReceiver};
+pub use handler::*;
+pub use tx_wrapper::*;
 pub use ui_commands::*;
 
-use handler::NeovimHandler;
-use log::{error, info};
-
 use self::create::create_nvim_commad;
+use crate::settings::SETTINGS;
+use crate::{cmd_line::CmdLineSettings, logging_sender::LoggingUnboundedSender};
+use log::{error, info, trace};
 use nvim_rs::{UiAttachOptions, Value};
+use std::sync::{atomic::AtomicBool, Arc};
+use tokio::{runtime::Runtime, sync::mpsc::UnboundedReceiver};
 
 pub struct Bridge {
     _runtime: Runtime,
@@ -39,7 +39,7 @@ pub fn start_bridge(
 
 async fn start_neovim_runtime(
     ui_command_sender: LoggingUnboundedSender<UiCommand>,
-    ui_command_receiver: UnboundedReceiver<UiCommand>,
+    mut ui_command_receiver: UnboundedReceiver<UiCommand>,
     redraw_event_sender: LoggingUnboundedSender<RedrawEvent>,
     running: Arc<AtomicBool>,
 ) {
@@ -131,4 +131,31 @@ async fn start_neovim_runtime(
         .await
         .expect("Could not attach ui to neovim process");
     info!("Neovim process attached");
+    let nvim = Arc::new(nvim);
+
+    let ui_command_running = running.clone();
+    let input_nvim = nvim.clone();
+    tokio::spawn(async move {
+        loop {
+            if !ui_command_running.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+
+            match ui_command_receiver.recv().await {
+                Some(ui_commands) => {
+                    let input_nvim = input_nvim.clone();
+                    tokio::spawn(async move {
+                        ui_commands.execute(&input_nvim).await;
+                    });
+                }
+                None => {
+                    ui_command_running.store(false, std::sync::atomic::Ordering::Relaxed);
+                    trace!("stop execute ui_command");
+                    break;
+                }
+            }
+        }
+    });
+    SETTINGS.read_initial_values(&nvim).await;
+    SETTINGS.setup_changed_listeners(&nvim).await;
 }

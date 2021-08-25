@@ -13,6 +13,7 @@ pub struct CmdLineSettings {
     pub frameless: bool,
     pub geometry: Dimensions,
     pub multi_grid: bool,
+    pub maximized: bool,
 }
 
 impl Default for CmdLineSettings {
@@ -26,6 +27,7 @@ impl Default for CmdLineSettings {
             frameless: false,
             geometry: Dimensions::default(),
             multi_grid: false,
+            maximized: false,
         }
     }
 }
@@ -74,6 +76,11 @@ pub fn handle_command_line_arguments() -> Result<(), String> {
             Arg::with_name("multi_grid")
                 .long("multigrid")
                 .help("Enable Multigrid"),
+        )
+        .arg(
+            Arg::with_name("maximized")
+                .long("maximized")
+                .help("Maxmize the window"),
         );
 
     let matches = clapp.get_matches();
@@ -92,6 +99,7 @@ pub fn handle_command_line_arguments() -> Result<(), String> {
         frameless: matches.is_present("frameless") || std::env::var("XVIM_FRAMELESS").is_ok(),
         geometry: parse_window_geometry(matches.value_of("geometry").map(|i| i.to_owned()))?,
         multi_grid: std::env::var("XVIM_MULTIGRID").is_ok() || matches.is_present("multi_grid"),
+        maximized: std::env::var("XVIM_MAXIMIZED").is_ok() || matches.is_present("maximized"),
     });
     Ok(())
 }

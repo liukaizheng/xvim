@@ -7,6 +7,7 @@ use tokio::task;
 
 use log::trace;
 
+use crate::settings::SETTINGS;
 use crate::{bridge::parse_redraw_event, logging_sender::LoggingUnboundedSender};
 
 use super::{tx_wrapper::TxWrapper, RedrawEvent, UiCommand};
@@ -50,6 +51,9 @@ impl Handler for NeovimHandler {
                         redraw_event_sender.send(parsed_event).ok();
                     }
                 }
+            }
+            "setting_changed" => {
+                SETTINGS.handle_changed_notification(args);
             }
             _ => {}
         })

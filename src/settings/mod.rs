@@ -3,10 +3,15 @@ mod from_value;
 pub use from_value::FromValue;
 pub use nvim_rs::Value;
 use parking_lot::RwLock;
+use std::convert::TryInto;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
 };
+
+use crate::bridge::TxWrapper;
+use log::trace;
+use nvim_rs::Neovim;
 
 lazy_static! {
     pub static ref SETTINGS: Settings = Settings::new();
@@ -67,5 +72,49 @@ impl Settings {
             .downcast_ref::<T>()
             .expect("Attempted to extract as setting object of the wrong type");
         value.clone()
+    }
+
+    pub async fn read_initial_values(&self, nvim: &Neovim<TxWrapper>) {
+        let keys: Vec<String> = self.listeners.read().keys().cloned().collect();
+        for name in keys {
+            let variable_name = format!("xvim_{}", name);
+            match nvim.get_var(&variable_name).await {
+                Ok(value) => {
+                    self.listeners.read().get(&name).unwrap()(value);
+                }
+                Err(error) => {
+                    trace!("Initial value load failed for {}: {}", name, error);
+                    let setting = self.readers.read().get(&name).unwrap()();
+                    nvim.set_var(&variable_name, setting).await.ok();
+                }
+            }
+        }
+    }
+
+    pub async fn setup_changed_listeners(&self, nvim: &Neovim<TxWrapper>) {
+        let keys = self.listeners.read().keys().cloned().collect::<Vec<_>>();
+        for name in keys {
+            let vimscript = format!(
+                concat!(
+                    "exe \"",
+                    "fun! XvimNotify{0}Changed(d, k, z)\n",
+                    "call rpcnotify(1, 'setting_changed', '{0}', g:xvim_{0})\n",
+                    "endf\n",
+                    "call dictwatcheradd(g:, 'xvim_{0}', 'XvimNotify{0}Changed')\"",
+                ),
+                name
+            );
+            nvim.command(&vimscript)
+                .await
+                .expect(&format!("Could not setup setting notifier for {}", name));
+        }
+    }
+
+    pub fn handle_changed_notification(&self, arguments: Vec<Value>) {
+        let mut arguments = arguments.into_iter();
+        let (name, value) = (arguments.next().unwrap(), arguments.next().unwrap());
+        let name: Result<String, _> = name.try_into();
+        let name = name.unwrap();
+        self.listeners.read().get(&name).unwrap()(value);
     }
 }
