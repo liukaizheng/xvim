@@ -17,12 +17,13 @@ use crate::{
 
 use glutin::{
     self,
+    event::Event,
     event_loop::{ControlFlow, EventLoop},
     window::{self, Icon},
     ContextBuilder, WindowedContext,
 };
-
 use image::{load_from_memory, GenericImageView, Pixel};
+use log::trace;
 
 use self::renderer::SkiaRenderer;
 
@@ -34,12 +35,154 @@ pub struct GlutinWindowWrapper {
     render: Render,
     ui_command_sender: LoggingUnboundedSender<UiCommand>,
     window_command_receiver: Receiver<WindowCommand>,
+    title: String,
 }
 
 impl GlutinWindowWrapper {
-    fn handle_window_commands(&mut self) {}
+    fn handle_window_commands(&mut self) {
+        let window_commands = self.window_command_receiver.try_iter().collect::<Vec<_>>();
+        for command in window_commands {
+            match command {
+                WindowCommand::TitleChanged(new_title) => {
+                    self.handle_title_changed(new_title);
+                }
+                WindowCommand::SetMouseEnable(_) => todo!(),
+            }
+        }
+    }
 
     fn draw_frame(&mut self, _dt: f32) {}
+
+    fn handle_title_changed(&mut self, new_title: String) {
+        self.title = new_title;
+        self.windowed_context.window().set_title(&self.title);
+    }
+
+    fn handle_event(&mut self, event: Event<()>, _running: &Arc<AtomicBool>) {
+        match event {
+            Event::NewEvents(_) => {}
+            Event::WindowEvent { event, .. } => match event {
+                glutin::event::WindowEvent::Resized(_) => {
+                    trace!("unhandled Resized event");
+                }
+                glutin::event::WindowEvent::Moved(_) => {
+                    trace!("unhanded Moved event");
+                }
+                glutin::event::WindowEvent::CloseRequested
+                | glutin::event::WindowEvent::Destroyed => {
+                    self.ui_command_sender.send(UiCommand::Quit).ok().unwrap();
+                }
+
+                glutin::event::WindowEvent::DroppedFile(_) => {
+                    trace!("unhandled DroppedFile event");
+                }
+                glutin::event::WindowEvent::HoveredFile(_) => {
+                    trace!("unhandled HoverdFile event");
+                }
+                glutin::event::WindowEvent::HoveredFileCancelled => {
+                    trace!("unhandled HoveredFileCancelled event");
+                }
+                glutin::event::WindowEvent::ReceivedCharacter(_) => {
+                    trace!("undhandled ReceivedCharacter event");
+                }
+                glutin::event::WindowEvent::Focused(_) => {
+                    trace!("unhandled Focus event");
+                }
+                glutin::event::WindowEvent::KeyboardInput {
+                    device_id,
+                    input,
+                    is_synthetic,
+                } => {
+                    trace!("unhandled keyboard input");
+                }
+                glutin::event::WindowEvent::ModifiersChanged(_) => {
+                    trace!("unhandled ModifiersChanged event");
+                }
+                glutin::event::WindowEvent::CursorMoved {
+                    device_id,
+                    position,
+                    modifiers,
+                } => {
+                    trace!("unhandled cursormove event");
+                }
+                glutin::event::WindowEvent::CursorEntered { device_id } => {
+                    trace!("unhandled cursorenter event");
+                }
+                glutin::event::WindowEvent::CursorLeft { device_id } => {
+                    trace!("unhandled cursorleft event");
+                }
+                glutin::event::WindowEvent::MouseWheel {
+                    device_id,
+                    delta,
+                    phase,
+                    modifiers,
+                } => {
+                    trace!("unhandled mouseWheel event");
+                }
+                glutin::event::WindowEvent::MouseInput {
+                    device_id,
+                    state,
+                    button,
+                    modifiers,
+                } => {
+                    trace!("unhandled mouseInput event");
+                }
+                glutin::event::WindowEvent::TouchpadPressure {
+                    device_id,
+                    pressure,
+                    stage,
+                } => {
+                    trace!("unhandled touchpadPressure");
+                }
+                glutin::event::WindowEvent::AxisMotion {
+                    device_id,
+                    axis,
+                    value,
+                } => {
+                    trace!("unhandled axisMotion");
+                }
+                glutin::event::WindowEvent::Touch(_) => {
+                    trace!("unhandled touch");
+                }
+                glutin::event::WindowEvent::ScaleFactorChanged {
+                    scale_factor,
+                    new_inner_size,
+                } => {
+                    trace!("unhandled scaleFactorChanged");
+                }
+                glutin::event::WindowEvent::ThemeChanged(_) => {
+                    trace!("unhandled theme changed");
+                }
+            },
+            Event::DeviceEvent { device_id, event } => {
+                trace!("unhandled device event");
+            }
+            Event::UserEvent(_) => {
+                trace!("unhandled user event");
+            }
+            Event::Suspended => {
+                trace!("unhandled suspend event");
+            }
+            Event::Resumed => {
+                trace!("unhandled resumed event");
+            }
+            Event::MainEventsCleared => {
+                trace!("unhandled mainevent clear");
+            }
+            Event::RedrawRequested(_) => {
+                trace!("unhandled redraw event");
+            }
+            Event::RedrawEventsCleared => {
+                trace!("unhandled redrawEvent clear");
+            }
+            Event::LoopDestroyed => {
+                trace!("unhandled loop destroyed event");
+            }
+            Event::DeviceEvent { device_id, event } => {
+                trace!("unhandled device events");
+            }
+        }
+    }
 }
 
 pub fn create_window(
@@ -58,8 +201,9 @@ pub fn create_window(
         Icon::from_rgba(rgba, w, h).expect("Failed to create icon object")
     };
     let event_loop = EventLoop::new();
+    let title = "Xvim".to_owned();
     let winit_window_builder = window::WindowBuilder::new()
-        .with_title("Xvim")
+        .with_title(&title)
         .with_window_icon(Some(icon))
         .with_maximized(SETTINGS.get::<CmdLineSettings>().maximized)
         .with_decorations(!SETTINGS.get::<CmdLineSettings>().frameless);
@@ -73,7 +217,7 @@ pub fn create_window(
         .unwrap();
     let windowed_context = unsafe { windowed_context.make_current().unwrap() };
 
-    let window = windowed_context.window();
+    let _window = windowed_context.window();
 
     let scale_factor = windowed_context.window().scale_factor();
     let render = Render::new(batched_draw_command_receiver, scale_factor);
@@ -88,16 +232,18 @@ pub fn create_window(
         render,
         ui_command_sender,
         window_command_receiver,
+        title,
     };
 
     let mut previous_frame_start = Instant::now();
-    event_loop.run(move |_e, _window_target, control_flow| {
+    event_loop.run(move |e, _window_target, control_flow| {
         if !running.load(std::sync::atomic::Ordering::Relaxed) {
             std::process::exit(0);
         }
 
         let frame_start = Instant::now();
         window_wrapper.handle_window_commands();
+        window_wrapper.handle_event(e, &running);
 
         let refresh_rate = SETTINGS.get::<WindowSettings>().refresh_rate as f32;
         let expected_frame_length_seconds = 1.0 / refresh_rate;

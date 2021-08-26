@@ -41,7 +41,7 @@ pub fn handle_command_line_arguments() -> Result<(), String> {
             Arg::with_name("verbosity")
                 .short("v")
                 .multiple(true)
-                .help("Increas verbosity level (repeat up to 4 times: implies -nofork)"),
+                .help("Increase verbosity level (repeat up to 4 times: implies -nofork)"),
         )
         .arg(
             Arg::with_name("log_to_file")

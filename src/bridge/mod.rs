@@ -50,6 +50,7 @@ async fn start_neovim_runtime(
     if nvim.get_api_info().await.is_err() {
         error!("Cannot get neovim api info, either neovide is launched with an unknown command line option or neovim version not supported!");
     }
+    let close_wathcer_running = running.clone();
     tokio::spawn(async move {
         info!("Close watcher started");
         match io_handler.await {
@@ -61,6 +62,7 @@ async fn start_neovim_runtime(
             }
             Ok(Ok(())) => {}
         }
+        close_wathcer_running.store(false, std::sync::atomic::Ordering::Relaxed);
     });
 
     match nvim.command_output("echo has('nvim-0.4')").await.as_deref() {

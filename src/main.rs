@@ -75,7 +75,6 @@ fn main() {
         logging_ui_command_sender,
         running,
     );
-    loop {}
 }
 
 #[cfg(not(test))]
