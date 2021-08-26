@@ -51,7 +51,9 @@ impl GlutinWindowWrapper {
         }
     }
 
-    fn draw_frame(&mut self, _dt: f32) {}
+    fn draw_frame(&mut self, _dt: f32) {
+        let window = self.windowed_context.window();
+    }
 
     fn handle_title_changed(&mut self, new_title: String) {
         self.title = new_title;

@@ -106,9 +106,26 @@ pub struct ChannelInfo {
     pub client: Option<ClientInfo>,
 }
 
+#[derive(Debug, Clone)]
+pub enum EditorMode {
+    Normal,
+    Insert,
+    Visual,
+    Replace,
+    CmdLine,
+    Unknown(String),
+}
+
 #[derive(Clone, Debug)]
 pub enum RedrawEvent {
     SetTitle { title: String },
+    ModeChange { mode: EditorMode, mode_index: u64 },
+    MouseOn,
+    MouseOff,
+    BusyStart,
+    BusyStop,
+    Flush,
+    Resize { grid: u64, width: u64 },
 }
 
 pub fn parse_redraw_event(event_value: Value) -> Result<Vec<RedrawEvent>> {
