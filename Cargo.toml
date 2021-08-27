@@ -10,6 +10,7 @@ resolver = "2"
 members = ["xvim-derive"]
 
 [dependencies]
+unicode-segmentation = "1"
 lru = "0"
 swash = "0"
 image = { version = "0", default-features = false, features = ["ico"]}
