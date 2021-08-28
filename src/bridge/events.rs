@@ -3,6 +3,8 @@ use nvim_rs::Value;
 use std::convert::TryInto;
 use std::fmt;
 
+use crate::editor::{Colors, CursorMode, CursorShape, Style};
+
 #[derive(Clone, Debug)]
 pub enum ParseError {
     Array(Value),
@@ -36,6 +38,75 @@ impl fmt::Display for ParseError {
             }
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct GridLineCell {
+    pub text: String,
+    pub highlight_id: Option<u64>,
+    pub repeat: Option<u64>,
+}
+
+pub type StyledContent = Vec<(u64, String)>;
+
+#[derive(Clone, Debug)]
+pub enum MessageKind {
+    Unknown,
+    Confirm,
+    ConfirmSubstitute,
+    Error,
+    Echo,
+    EchoMessage,
+    EchoError,
+    LuaError,
+    RpcError,
+    ReturnPrompt,
+    QuickFix,
+    SearchCount,
+    Warning,
+}
+
+impl MessageKind {
+    pub fn parse(kind: &str) -> MessageKind {
+        match kind {
+            "confirm" => MessageKind::Confirm,
+            "confirm_sub" => MessageKind::ConfirmSubstitute,
+            "emsg" => MessageKind::Error,
+            "echo" => MessageKind::Echo,
+            "echomsg" => MessageKind::EchoMessage,
+            "echoerr" => MessageKind::EchoError,
+            "lua_error" => MessageKind::LuaError,
+            "rpc_error" => MessageKind::RpcError,
+            "return_prompt" => MessageKind::ReturnPrompt,
+            "quickfix" => MessageKind::QuickFix,
+            "search_count" => MessageKind::SearchCount,
+            "wmsg" => MessageKind::Warning,
+            _ => MessageKind::Unknown,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum GuiOption {
+    ArabicShape(bool),
+    AmbiWidth(String),
+    Emoji(bool),
+    GuiFont(String),
+    GuiFontSet(String),
+    GuiFontWide(String),
+    LineSpace(u64),
+    Pumblend(u64),
+    ShowTabLine(u64),
+    TermGuiColors(bool),
+    Unknown(String, Value),
+}
+
+#[derive(Clone, Debug)]
+pub enum WindowAnchor {
+    NorthWest,
+    NorthEast,
+    SouthWest,
+    SouthEast,
 }
 
 #[derive(Debug)]
@@ -118,14 +189,143 @@ pub enum EditorMode {
 
 #[derive(Clone, Debug)]
 pub enum RedrawEvent {
-    SetTitle { title: String },
-    ModeChange { mode: EditorMode, mode_index: u64 },
+    SetTitle {
+        title: String,
+    },
+    ModeInfoSet {
+        cursor_modes: Vec<CursorMode>,
+    },
+    OptionSet {
+        gui_option: GuiOption,
+    },
+    ModeChange {
+        mode: EditorMode,
+        mode_index: u64,
+    },
     MouseOn,
     MouseOff,
     BusyStart,
     BusyStop,
     Flush,
-    Resize { grid: u64, width: u64 },
+    Resize {
+        grid: u64,
+        width: u64,
+        height: u64,
+    },
+    DefaultColorsSet {
+        colors: Colors,
+    },
+    HighlightAttributesDefine {
+        id: u64,
+        style: Style,
+    },
+    GridLine {
+        grid: u64,
+        row: u64,
+        column_start: u64,
+        cells: Vec<GridLineCell>,
+    },
+    Clear {
+        grid: u64,
+    },
+    Destroy {
+        grid: u64,
+    },
+    CursorGoto {
+        grid: u64,
+        row: u64,
+        column: u64,
+    },
+    Scroll {
+        grid: u64,
+        top: u64,
+        bottom: u64,
+        left: u64,
+        right: u64,
+        rows: i64,
+        columns: i64,
+    },
+    WindowPosition {
+        grid: u64,
+        start_row: u64,
+        start_column: u64,
+        width: u64,
+        height: u64,
+    },
+    WindowFloatPosition {
+        grid: u64,
+        anchor: WindowAnchor,
+        anchor_grid: u64,
+        anchor_row: f64,
+        anchor_column: f64,
+        focusable: bool,
+        sort_order: Option<u64>,
+    },
+    WindowExternalPosition {
+        grid: u64,
+    },
+    WindowHide {
+        grid: u64,
+    },
+    WindowClose {
+        grid: u64,
+    },
+    MessageSetPosition {
+        grid: u64,
+        row: u64,
+        scrolled: bool,
+        separator_character: String,
+    },
+    WindowViewport {
+        grid: u64,
+        top_line: f64,
+        bottom_line: f64,
+        current_line: f64,
+        current_column: f64,
+    },
+    CommandLineShow {
+        content: StyledContent,
+        position: u64,
+        first_character: String,
+        prompt: String,
+        indent: u64,
+        level: u64,
+    },
+    CommandLinePosition {
+        position: u64,
+        level: u64,
+    },
+    CommandLineSpecialCharacter {
+        character: String,
+        shift: bool,
+        level: u64,
+    },
+    CommandLineHide,
+    CommandLineBlockShow {
+        lines: Vec<StyledContent>,
+    },
+    CommandLineBlockAppend {
+        line: StyledContent,
+    },
+    CommandLineBlockHide,
+    MessageShow {
+        kind: MessageKind,
+        content: StyledContent,
+        replace_last: bool,
+    },
+    MessageClear,
+    MessageShowMode {
+        content: StyledContent,
+    },
+    MessageShowCommand {
+        content: StyledContent,
+    },
+    MessageRuler {
+        content: StyledContent,
+    },
+    MessageHistoryShow {
+        entries: Vec<(MessageKind, StyledContent)>,
+    },
 }
 
 pub fn parse_redraw_event(event_value: Value) -> Result<Vec<RedrawEvent>> {
@@ -135,17 +335,61 @@ pub fn parse_redraw_event(event_value: Value) -> Result<Vec<RedrawEvent>> {
         .ok_or_else(|| ParseError::Format(format!("{:?}", event_contents)))
         .and_then(parse_string)?;
     let mut parsed_events = Vec::with_capacity(event_contents.len());
+    macro_rules! for_parse {
+        ($func: expr) => {
+            for event in event_contents {
+                parsed_events.push($func(parse_array(event)?)?);
+            }
+        };
+    }
     match event_name.as_str() {
         "set_title" => {
-            for event in event_contents {
-                parsed_events.push(parse_set_title(parse_array(event)?)?);
-            }
+            for_parse!(parse_set_title);
+        }
+        "mode_info_set" => {
+            for_parse!(parse_mode_info_set);
         }
         _ => {
             trace!("un-parsed event {}", event_name);
         }
     }
     Ok(parsed_events)
+}
+
+fn parse_mode_info_set(mode_info_set_arguments: Vec<Value>) -> Result<RedrawEvent> {
+    let [_, mode_info] = extract_values(mode_info_set_arguments, [Value::Nil, Value::Nil])?;
+    let mode_info_values = parse_array(mode_info)?;
+    let mut cursor_modes = Vec::with_capacity(mode_info_values.len());
+    for mode_info_value in mode_info_values {
+        let info_map = parse_map(mode_info_value)?;
+        let mut mode_info = CursorMode::default();
+        for (name, value) in info_map {
+            match parse_string(name)?.as_str() {
+                "cursor_shape" => {
+                    mode_info.shape = CursorShape::from_type_name(&parse_string(value)?);
+                }
+                "cell_percentage" => {
+                    mode_info.cell_percentage = Some(parse_u64(value)? as f32 / 100.0);
+                }
+                "blinkwait" => {
+                    mode_info.blinkwait = Some(parse_u64(value)?);
+                }
+                "blinkon" => {
+                    mode_info.blinkon = Some(parse_u64(value)?);
+                }
+                "blinkoff" => {
+                    mode_info.blinkoff = Some(parse_u64(value)?);
+                }
+                "attr_id" => {
+                    mode_info.style_id = Some(parse_u64(value)?);
+                }
+                unknown_name => trace!("unknown cur mode name {}", unknown_name),
+            }
+        }
+        cursor_modes.push(mode_info);
+    }
+
+    Ok(RedrawEvent::ModeInfoSet {cursor_modes})
 }
 
 #[inline]

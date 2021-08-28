@@ -12,12 +12,15 @@ extern crate xvim_derive;
 extern crate clap;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate derive_new;
 
 use log::trace;
 use std::sync::{atomic::AtomicBool, mpsc::channel, Arc};
 use tokio::sync::mpsc::unbounded_channel;
 
 use crate::cmd_line::*;
+use crate::editor::start_editor;
 use crate::settings::*;
 use crate::window::create_window;
 use crate::{
@@ -68,6 +71,8 @@ fn main() {
         logging_redraw_event_sender,
         running.clone(),
     );
+
+    start_editor(redraw_event_receiver, logging_batched_draw_command_sender, logging_window_command_sender);
 
     create_window(
         batched_draw_command_receiver,

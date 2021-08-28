@@ -10,6 +10,7 @@ resolver = "2"
 members = ["xvim-derive"]
 
 [dependencies]
+derive-new = "0"
 unicode-segmentation = "1"
 lru = "0"
 swash = "0"

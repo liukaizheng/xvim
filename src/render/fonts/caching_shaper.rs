@@ -1,6 +1,6 @@
 use log::trace;
 use lru::LruCache;
-use skia_safe::TextBlob;
+use skia_safe::{TextBlob, TextBlobBuilder};
 use std::sync::Arc;
 use swash::{
     shape::ShapeContext,
@@ -25,11 +25,11 @@ struct ShapeKey {
 }
 
 impl ShapeKey {
-    pub fn new() -> Self {
+    pub fn new(cells: Vec<String>, bold: bool, italic: bool) -> Self {
         ShapeKey {
-            cells: Vec::new(),
-            bold: false,
-            italic: false,
+            cells,
+            bold,
+            italic,
         }
     }
 }
@@ -202,7 +202,7 @@ impl CachingShaper {
         grouped_results
     }
 
-    /*pub fn shape(&mut self, cells: &[String], bold: bool, italic: bool) -> Vec<TextBlob> {
+    fn shape(&mut self, cells: &[String], bold: bool, italic: bool) -> Vec<TextBlob> {
         let mut resulting_blobs = Vec::new();
         let current_size = self.current_size();
         let text = cells.concat();
@@ -213,7 +213,41 @@ impl CachingShaper {
                 .builder(font_pair.swash_font.as_ref())
                 .size(current_size)
                 .build();
+            let charmap = font_pair.swash_font.as_ref().charmap();
+            for mut cluster in cluster_group {
+                cluster.map(|ch| charmap.map(ch)); // there is need to do so?
+                shaper.add_cluster(&cluster);
+            }
+            let mut glyph_data = Vec::new();
+            shaper.shape_with(|glyph_cluster| {
+                for glyph in glyph_cluster.glyphs {
+                    let position = (glyph.x, glyph.y);
+                    glyph_data.push((glyph.id, position));
+                }
+            });
 
+            if glyph_data.is_empty() {
+                continue;
+            }
+
+            let mut blob_builder = TextBlobBuilder::new();
+            let (glyphs, positions) = blob_builder.alloc_run_pos(&font_pair.skia_font, glyph_data.len(), None);
+            for (i, (glyph_id, glyph_position)) in glyph_data.iter().enumerate() {
+                glyphs[i] = *glyph_id;
+                positions[i] = (*glyph_position).into();
+            }
+            let blob = blob_builder.make();
+            resulting_blobs.push(blob.expect("Could not create textblob"));
         }
-    }*/
+        resulting_blobs
+    }
+
+    pub fn shape_cached(&mut self, cells: &[String], bold: bool, italic: bool) -> &Vec<TextBlob> {
+        let key = ShapeKey::new(cells.to_vec(), bold, italic);
+        if !self.blob_cache.contains(&key) {
+            let blobs = self.shape(cells, bold, italic);
+            self.blob_cache.put(key.clone(), blobs);
+        }
+        self.blob_cache.get(&key).unwrap()
+    }
 }
